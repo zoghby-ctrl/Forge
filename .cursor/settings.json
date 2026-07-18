@@ -1,0 +1,10 @@
+{
+  "plugins": {
+    "canva": {
+      "enabled": true
+    },
+    "linear": {
+      "enabled": true
+    }
+  }
+}

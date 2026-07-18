@@ -1,0 +1,47 @@
+- main [ref=f2e2]:
+  - link "Skip to current Forge view" [ref=f2e3] [cursor=pointer]:
+    - /url: "#main-content"
+  - paragraph [ref=f2e4]: Forge is ready to connect a repository.
+  - generic [ref=f2e5]:
+    - button "Restart Forge journey" [ref=f2e6] [cursor=pointer]:
+      - generic [ref=f2e9]: Forge
+    - generic [ref=f2e10]: Decision memory for software changes
+    - generic [ref=f2e13]:
+      - button "Replay" [ref=f2e14] [cursor=pointer]
+      - button "Sign out" [ref=f2e16] [cursor=pointer]
+  - region "Forge workspace" [ref=f2e17]:
+    - region [ref=f2e18]:
+      - generic [ref=f2e19]:
+        - paragraph [ref=f2e20]: The operating system for engineering decisions
+        - heading "Engineering decisions, traced." [level=1] [ref=f2e21]: Engineeringdecisions,traced.
+        - paragraph [ref=f2e22]: Forge builds a source-backed record around consequential pull requests—before confidence turns into production risk.
+        - button "Connect GitHub" [ref=f2e23] [cursor=pointer]
+        - paragraph [ref=f2e29]: GitHub data stays server-side · Forge sends no write requests · Source records before conclusions
+      - generic [ref=f2e30]:
+        - paragraph [ref=f2e31]: Evidence Current / source-backed
+        - generic [ref=f2e32]:
+          - generic [ref=f2e37]:
+            - generic [ref=f2e38]: Source
+            - generic [ref=f2e39]: GitHub
+          - generic [ref=f2e40]:
+            - generic [ref=f2e41]: Metadata
+            - generic [ref=f2e42]: pending
+          - generic [ref=f2e43]:
+            - generic [ref=f2e44]: Files
+            - generic [ref=f2e45]: pending
+          - generic [ref=f2e46]:
+            - generic [ref=f2e47]: Diff
+            - generic [ref=f2e48]: pending
+          - generic [ref=f2e49]:
+            - generic [ref=f2e50]: Commits
+            - generic [ref=f2e51]: pending
+          - generic [ref=f2e52]:
+            - generic [ref=f2e53]: Decision
+            - generic [ref=f2e54]: source record
+        - generic [ref=f2e55]:
+          - generic [ref=f2e56]: Source
+          - generic [ref=f2e57]: Pull request facts
+          - generic [ref=f2e58]: Proof
+          - generic [ref=f2e59]: Diff metadata
+          - generic [ref=f2e60]: Memory
+          - generic [ref=f2e61]: Human decision

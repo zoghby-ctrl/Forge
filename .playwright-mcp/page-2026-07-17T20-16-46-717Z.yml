@@ -1,0 +1,57 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - link "Skip to current Forge view" [ref=e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - paragraph [ref=e4]: Reading repository history.
+    - generic [ref=e5]:
+      - button "Restart Forge journey" [ref=e6] [cursor=pointer]:
+        - generic [ref=e9]: Forge
+      - generic [ref=e10]: acme/forge-api · main
+      - generic [ref=e13]:
+        - generic [ref=e14]: GitHub · forge-e2e
+        - button "Disconnect GitHub" [ref=e16] [cursor=pointer]
+        - button "Replay" [ref=e17] [cursor=pointer]
+        - button "Sign out" [ref=e19] [cursor=pointer]
+    - region "Forge workspace" [ref=e20]:
+      - region [ref=e57]:
+        - generic [ref=e58]:
+          - generic [ref=e59]:
+            - paragraph [ref=e60]: Repository scan / source ingestion
+            - generic [ref=e61]: 03 / 06
+          - heading "Reading repository history." [level=1] [ref=e62]
+          - paragraph [ref=e63]: Forge is reading acme/forge-api from GitHub.
+        - generic [ref=e64]:
+          - generic [ref=e65]:
+            - generic [ref=e68]: acme/forge-api
+            - generic [ref=e69]: main
+            - generic [ref=e70]: read only
+          - list [ref=e71]:
+            - listitem [ref=e72]:
+              - generic [ref=e73]: "01"
+              - generic [ref=e74]:
+                - generic [ref=e75]: Reading repository history
+                - generic [ref=e76]: Fetching recent pull requests from GitHub.
+              - emphasis [ref=e77]: Reading
+            - listitem [ref=e78]:
+              - generic [ref=e79]: "02"
+              - generic [ref=e80]:
+                - generic [ref=e81]: Capturing changed-file metadata
+                - generic [ref=e82]: Waiting for GitHub file metadata.
+              - emphasis [ref=e83]: Queued
+            - listitem [ref=e84]:
+              - generic [ref=e85]: "03"
+              - generic [ref=e86]:
+                - generic [ref=e87]: Capturing commit metadata
+                - generic [ref=e88]: Waiting for GitHub commit metadata.
+              - emphasis [ref=e89]: Queued
+            - listitem [ref=e90]:
+              - generic [ref=e91]: "04"
+              - generic [ref=e92]:
+                - generic [ref=e93]: Mapping changes to guarantees
+                - generic [ref=e94]: Forge preserves source evidence and does not infer behavioral guarantees before OpenAI integration.
+              - emphasis [ref=e95]: Queued
+          - generic [ref=e96]:
+            - generic [ref=e97]: Reading repository history
+            - button "Reading repository history" [disabled] [ref=e98]
+  - button "Open Next.js Dev Tools" [ref=e52] [cursor=pointer]
+  - alert [ref=e56]

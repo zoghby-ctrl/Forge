@@ -1,0 +1,45 @@
+- main [ref=f3e2]:
+  - link "Skip to current Forge view" [ref=f3e3] [cursor=pointer]:
+    - /url: "#main-content"
+  - paragraph [ref=f3e4]: Forge is ready to connect a repository.
+  - generic [ref=f3e5]:
+    - button "Restart Forge journey" [ref=f3e6] [cursor=pointer]:
+      - generic [ref=f3e9]: Forge
+    - generic [ref=f3e10]: Decision memory for software changes
+    - button "Replay" [ref=f3e14] [cursor=pointer]
+  - region "Forge product demonstration" [ref=f3e15]:
+    - region [ref=f3e16]:
+      - generic [ref=f3e17]:
+        - paragraph [ref=f3e18]: The operating system for engineering decisions
+        - heading "Engineering decisions, traced." [level=1] [ref=f3e19]: Engineeringdecisions,traced.
+        - paragraph [ref=f3e20]: Forge builds a causal record around every consequential pull request—before confidence turns into production risk.
+        - button "Connect GitHub" [ref=f3e21] [cursor=pointer]
+        - paragraph [ref=f3e27]: Read-only access · Scoped to repositories you choose · No code written
+      - generic [ref=f3e28]:
+        - paragraph [ref=f3e29]: Evidence Current / 001
+        - generic [ref=f3e30]:
+          - generic [ref=f3e36]:
+            - generic [ref=f3e37]: Source
+            - generic [ref=f3e38]: "PR #184"
+          - generic [ref=f3e39]:
+            - generic [ref=f3e40]: Guarantee
+            - generic [ref=f3e41]: settles once
+          - generic [ref=f3e42]:
+            - generic [ref=f3e43]: Path
+            - generic [ref=f3e44]: refund handler
+          - generic [ref=f3e45]:
+            - generic [ref=f3e46]: Contradiction
+            - generic [ref=f3e47]: identity lost
+          - generic [ref=f3e48]:
+            - generic [ref=f3e49]: Repair
+            - generic [ref=f3e50]: required
+          - generic [ref=f3e51]:
+            - generic [ref=f3e52]: Decision
+            - generic [ref=f3e53]: Hold
+        - generic [ref=f3e54]:
+          - generic [ref=f3e55]: Intent
+          - generic [ref=f3e56]: Change behavior
+          - generic [ref=f3e57]: Proof
+          - generic [ref=f3e58]: Trace consequence
+          - generic [ref=f3e59]: Memory
+          - generic [ref=f3e60]: Leave a decision

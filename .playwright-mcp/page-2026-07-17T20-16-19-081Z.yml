@@ -1,0 +1,26 @@
+- main [ref=e2]:
+  - link "Skip to current Forge view" [ref=e3] [cursor=pointer]:
+    - /url: "#main-content"
+  - paragraph [ref=e4]: Choose a repository to inspect.
+  - generic [ref=e5]:
+    - button "Restart Forge journey" [ref=e6] [cursor=pointer]:
+      - generic [ref=e9]: Forge
+    - generic [ref=e10]: GitHub connected / choose a repository
+    - generic [ref=e13]:
+      - generic [ref=e14]: GitHub · forge-e2e
+      - button "Disconnect GitHub" [ref=e16] [cursor=pointer]
+      - button "Replay" [ref=e17] [cursor=pointer]
+      - button "Sign out" [ref=e19] [cursor=pointer]
+  - region "Forge workspace" [ref=e20]:
+    - alert [ref=e21]: GitHub is connected. Choose a repository to read.
+    - region [ref=e22]:
+      - generic [ref=e23]:
+        - generic [ref=e24]:
+          - paragraph [ref=e25]: GitHub / repository picker
+          - generic [ref=e26]: 02 / 06
+        - heading "Choose the system you want to understand." [level=1] [ref=e27]
+        - paragraph [ref=e28]: Forge reads repository metadata directly from GitHub before it builds any source record.
+      - generic [ref=e29]:
+        - generic [ref=e30]: No repositories are available to this GitHub account. Check organization access, then reconnect if permissions changed.
+        - button "Disconnect GitHub" [ref=e31] [cursor=pointer]
+      - paragraph [ref=e34]: Repository name · owner · visibility · default branch · language · recent activity

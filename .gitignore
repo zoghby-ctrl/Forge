@@ -1,0 +1,22 @@
+# dependencies and build output
+node_modules/
+.next/
+out/
+coverage/
+playwright-report/
+test-results/
+
+# local configuration and secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# local tooling
+.DS_Store
+*.log
+*.tsbuildinfo
+.ui-*.png
+
+# generated database artifacts
+drizzle/meta/

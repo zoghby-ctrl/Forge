@@ -1,0 +1,27 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - link "Skip to current Forge view" [ref=e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - paragraph [ref=e4]: Reading repository history.
+    - generic [ref=e5]:
+      - button "Restart Forge journey" [ref=e6] [cursor=pointer]:
+        - generic [ref=e9]: Forge
+      - generic [ref=e10]: acme/forge-api · main
+      - generic [ref=e13]:
+        - generic [ref=e14]: GitHub · forge-e2e
+        - button "Disconnect GitHub" [ref=e16] [cursor=pointer]
+        - button "Replay" [ref=e17] [cursor=pointer]
+        - button "Sign out" [ref=e19] [cursor=pointer]
+    - region "Forge workspace" [ref=e20]:
+      - region [ref=e57]:
+        - generic [ref=e58]:
+          - generic [ref=e59]:
+            - paragraph [ref=e60]: Repository scan / source ingestion
+            - generic [ref=e61]: 03 / 06
+          - heading "Repository history captured." [level=1] [ref=e102]
+          - paragraph [ref=e63]: Forge retained pull request, changed-file, commit, and diff metadata as an inspectable source record.
+        - alert [ref=e103]:
+          - generic [ref=e104]: The submitted data is invalid.
+          - button "Return to repository picker" [ref=e105] [cursor=pointer]
+  - button "Open Next.js Dev Tools" [ref=e52] [cursor=pointer]
+  - alert [ref=e56]

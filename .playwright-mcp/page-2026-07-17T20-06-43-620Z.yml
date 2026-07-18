@@ -1,0 +1,18 @@
+- main [ref=e2]:
+  - region [ref=e3]:
+    - link "Forge home" [ref=e4] [cursor=pointer]:
+      - /url: /
+      - generic [ref=e5]: F
+      - generic [ref=e6]: Forge
+    - paragraph [ref=e7]: Secure workspace access
+    - heading [level=1] [ref=e8]:
+      - text: Keep the decision
+      - emphasis [ref=e9]: with the evidence.
+    - paragraph [ref=e10]: Sign in to open your private Forge workspace. Repository connection remains a separate, read-only step.
+    - generic [ref=e11]:
+      - generic [ref=e12]: Work email
+      - textbox "Work email" [ref=e13]:
+        - /placeholder: you@company.com
+      - button "Continue securely" [ref=e14] [cursor=pointer]:
+        - generic [ref=e16]: ↗
+      - paragraph [ref=e17]: We use a passwordless sign-in link. No repository access is requested here.

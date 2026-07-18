@@ -1,0 +1,47 @@
+- generic [active] [ref=f6e1]:
+  - main [ref=f6e2]:
+    - link "Skip to current Forge view" [ref=f6e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - paragraph [ref=f6e4]: Forge is ready to connect a repository.
+    - generic [ref=f6e5]:
+      - button "Restart Forge journey" [ref=f6e6] [cursor=pointer]:
+        - generic [ref=f6e9]: Forge
+      - generic [ref=f6e10]: Decision memory for software changes
+      - button "Replay" [ref=f6e14] [cursor=pointer]
+    - region "Forge product demonstration" [ref=f6e15]:
+      - region [ref=f6e16]:
+        - generic [ref=f6e17]:
+          - paragraph [ref=f6e18]: The operating system for engineering decisions
+          - heading "Engineering decisions, traced." [level=1] [ref=f6e19]: Engineeringdecisions,traced.
+          - paragraph [ref=f6e20]: Forge builds a causal record around every consequential pull request—before confidence turns into production risk.
+          - button "Connect GitHub" [ref=f6e21] [cursor=pointer]
+          - paragraph [ref=f6e27]: Read-only access · Scoped to repositories you choose · No code written
+        - generic [ref=f6e28]:
+          - paragraph [ref=f6e29]: Evidence Current / 001
+          - generic [ref=f6e30]:
+            - generic [ref=f6e36]:
+              - generic [ref=f6e37]: Source
+              - generic [ref=f6e38]: "PR #184"
+            - generic [ref=f6e39]:
+              - generic [ref=f6e40]: Guarantee
+              - generic [ref=f6e41]: settles once
+            - generic [ref=f6e42]:
+              - generic [ref=f6e43]: Path
+              - generic [ref=f6e44]: refund handler
+            - generic [ref=f6e45]:
+              - generic [ref=f6e46]: Contradiction
+              - generic [ref=f6e47]: identity lost
+            - generic [ref=f6e48]:
+              - generic [ref=f6e49]: Repair
+              - generic [ref=f6e50]: required
+            - generic [ref=f6e51]:
+              - generic [ref=f6e52]: Decision
+              - generic [ref=f6e53]: Hold
+          - generic [ref=f6e54]:
+            - generic [ref=f6e55]: Intent
+            - generic [ref=f6e56]: Change behavior
+            - generic [ref=f6e57]: Proof
+            - generic [ref=f6e58]: Trace consequence
+            - generic [ref=f6e59]: Memory
+            - generic [ref=f6e60]: Leave a decision
+  - alert [ref=f6e61]
