@@ -16,6 +16,7 @@ import { ensureCurrentUserProfile } from "@/server/auth/session";
 import { DataAccessError, NotFoundError } from "@/server/api/errors";
 import { getGitHubConnectionStatus } from "@/server/github/connection-service";
 import { logError } from "@/server/observability/logger";
+import { getPassportReviewFromPayload } from "@/server/passports/passport-extensions";
 import { ensureForgeProjectForUser, type ForgeProjectRow } from "@/server/workspace/project";
 
 type RepositoryRow = {
@@ -64,6 +65,7 @@ type PassportRow = {
   analysis_status: "pending" | "running" | "complete" | "failed";
   analysis_error_message: string | null;
   repair_staged_at: string | null;
+  analysis_payload: unknown;
 };
 
 type EvidenceRow = {
@@ -79,6 +81,9 @@ type EvidenceRow = {
   source_label: string;
   source_path: string | null;
   commit_sha: string | null;
+  line_start: number | null;
+  line_end: number | null;
+  excerpt: string | null;
   source_url: string | null;
 };
 
@@ -181,7 +186,7 @@ async function readWorkspace(
 
   const { data: passportData, error: passportError } = await supabase
     .from("change_passports")
-    .select("id, project_id, repository_id, pull_request_id, verdict, summary, required_condition, confidence_label, review_state, analysis_status, analysis_error_message, repair_staged_at")
+    .select("id, project_id, repository_id, pull_request_id, verdict, summary, required_condition, confidence_label, review_state, analysis_status, analysis_error_message, repair_staged_at, analysis_payload")
     .in("repository_id", repositoryIds)
     .order("created_at");
   throwForDatabaseError("load Change Passports", passportError);
@@ -191,7 +196,7 @@ async function readWorkspace(
   const { data: evidenceData, error: evidenceError } = passportIds.length > 0
     ? await supabase
       .from("evidence")
-      .select("id, passport_id, guarantee_id, ordinal, kind, tone, label, title, detail, source_label, source_path, commit_sha, source_url")
+      .select("id, passport_id, guarantee_id, ordinal, kind, tone, label, title, detail, source_label, source_path, commit_sha, line_start, line_end, excerpt, source_url")
       .in("passport_id", passportIds)
       .order("ordinal")
     : { data: [], error: null };
@@ -286,6 +291,7 @@ async function readWorkspace(
         analysisStatus: passport.analysis_status,
         analysisError: passport.analysis_error_message,
         repairStaged: Boolean(passport.repair_staged_at),
+        review: getPassportReviewFromPayload(passport.analysis_payload),
         evidence: (evidenceByPassport.get(passport.id) ?? []).map((item) => ({
           id: item.id,
           passportId: item.passport_id,
@@ -299,6 +305,9 @@ async function readWorkspace(
           source: item.source_label,
           sourcePath: item.source_path,
           commitSha: item.commit_sha,
+          lineStart: item.line_start,
+          lineEnd: item.line_end,
+          excerpt: item.excerpt,
           sourceUrl: item.source_url,
         })),
         decision: decision

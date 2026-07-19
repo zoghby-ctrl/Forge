@@ -28,6 +28,7 @@ import type {
 } from "@/server/openai/contracts";
 import type { PassportCitation, PassportGroundedClaim } from "@/server/openai/schema";
 import { getForgeWorkspaceForUser } from "@/server/workspace/service";
+import { withAnalysisReviewPayload } from "@/server/passports/passport-extensions";
 
 export type PassportAnalysisProgress = {
   phase:
@@ -51,6 +52,7 @@ type AnalysisTarget = {
   analysisInputHash: string | null;
   analysisModel: string | null;
   analysisPromptVersion: string | null;
+  analysisPayload: unknown;
 };
 
 type PersistableEvidence = {
@@ -92,7 +94,7 @@ async function loadAnalysisTarget(user: ForgeUser, passportId: string): Promise<
   const supabase = await createServerSupabaseClient();
   const { data: passport, error: passportError } = await supabase
     .from("change_passports")
-    .select("id, project_id, repository_id, pull_request_id, analysis_status, analysis_input_hash, analysis_model, analysis_prompt_version")
+    .select("id, project_id, repository_id, pull_request_id, analysis_status, analysis_input_hash, analysis_model, analysis_prompt_version, analysis_payload")
     .eq("id", passportId)
     .maybeSingle();
   throwForDataError("load this Change Passport", passportError);
@@ -131,6 +133,7 @@ async function loadAnalysisTarget(user: ForgeUser, passportId: string): Promise<
     analysisInputHash: passport.analysis_input_hash,
     analysisModel: passport.analysis_model,
     analysisPromptVersion: passport.analysis_prompt_version,
+    analysisPayload: passport.analysis_payload,
   };
 }
 
@@ -257,10 +260,10 @@ function claimToEvidence(input: {
   tone: PersistableEvidence["tone"];
   label: string;
   claim: PassportGroundedClaim;
+  citation: PassportCitation;
   source: PassportAnalysisInput;
 }): PersistableEvidence {
-  const citation = input.claim.citations[0]!;
-  const source = sourceForCitation(citation, input.source);
+  const source = sourceForCitation(input.citation, input.source);
 
   return {
     ordinal: input.ordinal,
@@ -272,9 +275,9 @@ function claimToEvidence(input: {
     source_label: limitText(source.sourceLabel, maxDatabaseText.sourceLabel),
     source_path: source.sourcePath,
     commit_sha: source.commitSha,
-    line_start: citation.lineStart,
-    line_end: citation.lineEnd,
-    excerpt: limitText(citation.note, maxDatabaseText.detail),
+    line_start: input.citation.lineStart,
+    line_end: input.citation.lineEnd,
+    excerpt: limitText(input.citation.note, maxDatabaseText.detail),
     provider_object_id: source.providerObjectId,
     source_url: source.sourceUrl,
   };
@@ -315,14 +318,17 @@ function mapAnalysisToEvidence(input: {
     label: string,
     claim: PassportGroundedClaim,
   ) => {
-    mapped.push(claimToEvidence({
-      ordinal: mapped.length + 1,
-      kind,
-      tone,
-      label,
-      claim,
-      source: input.analysisInput,
-    }));
+    claim.citations.forEach((citation, citationIndex) => {
+      mapped.push(claimToEvidence({
+        ordinal: mapped.length + 1,
+        kind,
+        tone,
+        label: claim.citations.length > 1 ? `${label} · evidence ${citationIndex + 1}` : label,
+        claim,
+        citation,
+        source: input.analysisInput,
+      }));
+    });
   };
 
   addClaim("intent", "default", "Intent", input.analysis.intent);
@@ -363,7 +369,9 @@ async function persistAnalysis(input: {
     p_analysis_input_hash: input.analysisHash,
     p_analysis_model: input.analysisModel,
     p_analysis_prompt_version: passportPromptVersion,
-    p_analysis_payload: input.analysis,
+    // The analysis result remains at the existing top level. Preserve the
+    // namespaced review sidecar so re-analysis never erases a user's chat.
+    p_analysis_payload: withAnalysisReviewPayload(input.analysis, input.target.analysisPayload),
     p_verdict: input.analysis.verdict,
     p_summary: limitText(input.analysis.summary, 8_000),
     p_required_condition: requiredCondition,

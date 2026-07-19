@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { forgePassportReviewSchema } from "@/domain/passport-review";
 
 export const forgeVerdictSchema = z.enum([
   "ship",
@@ -101,6 +102,9 @@ export const forgeEvidenceSchema = z.object({
   source: z.string(),
   sourcePath: z.string().nullable(),
   commitSha: z.string().nullable(),
+  lineStart: z.number().int().positive().nullable(),
+  lineEnd: z.number().int().positive().nullable(),
+  excerpt: z.string().nullable(),
   sourceUrl: z.url().nullable(),
 });
 
@@ -123,6 +127,7 @@ export const forgePassportSchema = z.object({
   analysisStatus: forgePassportAnalysisStatusSchema,
   analysisError: z.string().nullable(),
   repairStaged: z.boolean(),
+  review: forgePassportReviewSchema,
   evidence: z.array(forgeEvidenceSchema),
   decision: forgeDecisionSchema.nullable(),
 });

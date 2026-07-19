@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { signOut } from "@/app/actions/auth";
 import { ChangePassportCard } from "@/components/passport/change-passport";
+import { PassportReviewTools } from "@/components/passport/passport-review-tools";
 import type {
   ForgeEvidence,
   ForgePassport,
@@ -736,20 +737,22 @@ export function ForgeDemo({
                 <EvidenceCurrent stage="passport" pullRequest={selectedPassportPullRequest} evidence={evidenceEntries} verdict={selectedPassport.verdict} />
                 <div className="evidence-list">
                   {evidenceEntries.map((entry, index) => (
-                    <button
-                      key={entry.id}
-                      type="button"
-                      className={"evidence-row" + (activeEvidence?.id === entry.id ? " is-active" : "") + (entry.tone !== "default" ? " tone-" + entry.tone : "")}
-                      ref={(element) => { evidenceControls.current[entry.id] = element; }}
-                      onClick={() => setActiveEvidenceId(entry.id)}
-                      onFocus={() => setActiveEvidenceId(entry.id)}
-                      aria-pressed={activeEvidence?.id === entry.id}
-                      data-evidence-control
-                    >
-                      <span>{String(index + 1).padStart(2, "0")}</span>
-                      <div><small>{entry.label}</small><b>{entry.title}</b><em>{entry.detail}</em></div>
-                      <i>{entry.source}</i>
-                    </button>
+                    <div className="evidence-row-wrap" key={entry.id}>
+                      <button
+                        type="button"
+                        className={"evidence-row" + (activeEvidence?.id === entry.id ? " is-active" : "") + (entry.tone !== "default" ? " tone-" + entry.tone : "")}
+                        ref={(element) => { evidenceControls.current[entry.id] = element; }}
+                        onClick={() => setActiveEvidenceId(entry.id)}
+                        onFocus={() => setActiveEvidenceId(entry.id)}
+                        aria-pressed={activeEvidence?.id === entry.id}
+                        data-evidence-control
+                      >
+                        <span>{String(index + 1).padStart(2, "0")}</span>
+                        <div><small>{entry.label}</small><b>{entry.title}</b><em>{entry.detail}</em></div>
+                        <i>{entry.source}</i>
+                      </button>
+                      {entry.sourceUrl && <a className="evidence-source-link" href={entry.sourceUrl} target="_blank" rel="noreferrer">Open source ↗</a>}
+                    </div>
                   ))}
                 </div>
               </section>
@@ -763,11 +766,18 @@ export function ForgeDemo({
                 repairStaged={repairStaged}
                 analysisComplete={selectedPassport.analysisStatus === "complete"}
                 evidenceCount={selectedPassport.evidence.length}
+                summaryEvidenceUrl={selectedPassport.evidence.find((entry) => entry.label.startsWith("Intent"))?.sourceUrl ?? null}
                 reviewState={selectedPassport.reviewState}
                 onStageRepair={stageRepair}
                 onRecord={recordDecision}
               />
             </div>
+            <PassportReviewTools
+              passport={selectedPassport}
+              pullRequest={selectedPassportPullRequest}
+              analysisComplete={selectedPassport.analysisStatus === "complete"}
+              onReviewChange={(review) => updatePassport(selectedPassport.id, { review })}
+            />
             <footer className="passport-footer"><span>Forge records source evidence before a human decision.</span><span>{recorded ? "Decision memory / recorded" : "Evidence before confidence."}</span></footer>
           </section>
         )}

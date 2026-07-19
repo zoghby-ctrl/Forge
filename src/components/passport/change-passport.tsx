@@ -22,6 +22,7 @@ interface ChangePassportCardProps {
   repairStaged: boolean;
   analysisComplete: boolean;
   evidenceCount: number;
+  summaryEvidenceUrl: string | null;
   reviewState: string;
   onStageRepair: () => void;
   onRecord: () => void;
@@ -36,6 +37,7 @@ export function ChangePassportCard({
   repairStaged,
   analysisComplete,
   evidenceCount,
+  summaryEvidenceUrl,
   reviewState,
   onStageRepair,
   onRecord,
@@ -47,6 +49,7 @@ export function ChangePassportCard({
       <div className="passport-document-head"><p className="panel-label">Change Passport</p><span>FORGE / {String(changeNumber).padStart(4, "0")}</span></div>
       <div className="passport-verdict"><p>Evidence posture</p><h2>{decisionLabel}</h2><span>{reviewState.replaceAll("_", " ")}</span></div>
       <p className="passport-summary">{passport.summary}</p>
+      {summaryEvidenceUrl && <a className="passport-summary-evidence" href={summaryEvidenceUrl} target="_blank" rel="noreferrer">Trace summary evidence ↗</a>}
       <div className="passport-condition">
         <span>Required before merge</span>
         <b>{repairStaged ? "Repair path staged. Re-run this Passport against the next commit." : passport.condition}</b>

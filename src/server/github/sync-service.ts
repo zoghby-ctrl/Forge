@@ -17,6 +17,7 @@ import { AuthorizationError, DataAccessError } from "@/server/api/errors";
 import { withGitHubClient } from "@/server/github/connection-service";
 import { readGitHubRepositoryHistory } from "@/server/github/ingestion";
 import { createGitHubSourcePassport } from "@/server/github/passport";
+import { preserveReviewPayloadOnSourceRefresh } from "@/server/passports/passport-extensions";
 import { ensureForgeProjectForUser } from "@/server/workspace/project";
 
 const idRowSchema = z.object({ id: z.string().uuid() });
@@ -24,6 +25,7 @@ const passportAnalysisCacheSchema = z.object({
   id: z.string().uuid(),
   analysis_status: z.enum(["pending", "running", "complete", "failed"]),
   analysis_source_head_sha: z.string().nullable(),
+  analysis_payload: z.unknown().nullable(),
 });
 
 type PersistedPullRequest = {
@@ -250,7 +252,7 @@ async function persistSourcePassport(input: {
   const supabase = createGitHubAdminSupabaseClient();
   const { data: existing, error: existingError } = await supabase
     .from("change_passports")
-    .select("id, analysis_status, analysis_source_head_sha")
+    .select("id, analysis_status, analysis_source_head_sha, analysis_payload")
     .eq("pull_request_id", input.pullRequestId)
     .eq("passport_version", 1)
     .maybeSingle();
@@ -269,6 +271,9 @@ async function persistSourcePassport(input: {
     }
   }
 
+  const retainedReviewPayload = existing
+    ? preserveReviewPayloadOnSourceRefresh(passportAnalysisCacheSchema.parse(existing).analysis_payload)
+    : null;
   const sourcePassport = createGitHubSourcePassport({
     repositoryFullName: input.repositoryFullName,
     pullRequest: input.pullRequest,
@@ -294,7 +299,9 @@ async function persistSourcePassport(input: {
       analysis_completed_at: null,
       analysis_error_code: null,
       analysis_error_message: null,
-      analysis_payload: null,
+      // A changed source invalidates the derived analysis, but not the user's
+      // Passport-scoped conversation history. Retain it in its private sidecar.
+      analysis_payload: retainedReviewPayload,
       created_by: input.userId,
       updated_by: input.userId,
     },

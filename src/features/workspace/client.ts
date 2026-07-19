@@ -7,6 +7,7 @@ import type {
   RecordDecisionInput,
   StageRepairPathInput,
 } from "@/domain/forge-workspace";
+import type { ForgePassportReview } from "@/domain/passport-review";
 import type { GitHubRepositorySummary } from "@/integrations/github/repositories";
 import type { ApiResponse } from "@/server/api/response";
 
@@ -66,6 +67,16 @@ export function disconnectGitHub() {
 export type PassportAnalysisProgress = {
   phase: string;
   message: string;
+};
+
+export type PassportReviewProgress = {
+  phase: string;
+  message: string;
+};
+
+type PassportReviewComplete = {
+  review: ForgePassportReview;
+  cached?: boolean;
 };
 
 type PassportAnalysisComplete = {
@@ -137,4 +148,80 @@ export async function analyzePassport(
   const completed = consume(buffer);
   if (completed) return completed;
   throw new Error("Forge ended the AI analysis before returning a Passport.");
+}
+
+async function consumePassportReviewStream(input: {
+  url: string;
+  body: Record<string, unknown>;
+  fallback: string;
+  onProgress: (progress: PassportReviewProgress) => void;
+}): Promise<PassportReviewComplete> {
+  const response = await fetch(input.url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input.body),
+    cache: "no-store",
+  });
+  if (!response.ok || !response.body) {
+    const payload = await response.json().catch(() => null) as ApiResponse<never> | null;
+    throw new Error(payload && !payload.ok ? payload.error.message : input.fallback);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  const consume = (block: string): PassportReviewComplete | null => {
+    const parsed = parseStreamEvent(block);
+    if (!parsed) return null;
+    if (parsed.name === "progress") {
+      input.onProgress(parsed.data as PassportReviewProgress);
+      return null;
+    }
+    if (parsed.name === "error") {
+      const message = (parsed.data as { message?: unknown }).message;
+      throw new Error(typeof message === "string" ? message : input.fallback);
+    }
+    return parsed.name === "complete" ? parsed.data as PassportReviewComplete : null;
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done });
+    let boundary = buffer.indexOf("\n\n");
+    while (boundary !== -1) {
+      const complete = consume(buffer.slice(0, boundary));
+      buffer = buffer.slice(boundary + 2);
+      if (complete) return complete;
+      boundary = buffer.indexOf("\n\n");
+    }
+    if (done) break;
+  }
+  const complete = consume(buffer);
+  if (complete) return complete;
+  throw new Error(input.fallback);
+}
+
+export function askPassportReview(
+  passportId: string,
+  question: string,
+  onProgress: (progress: PassportReviewProgress) => void,
+) {
+  return consumePassportReviewStream({
+    url: `/api/passports/${passportId}/review`,
+    body: { question },
+    fallback: "Forge could not complete this AI review.",
+    onProgress,
+  });
+}
+
+export function generatePassportInsights(
+  passportId: string,
+  onProgress: (progress: PassportReviewProgress) => void,
+) {
+  return consumePassportReviewStream({
+    url: `/api/passports/${passportId}/insights`,
+    body: {},
+    fallback: "Forge could not complete this enhanced review.",
+    onProgress,
+  });
 }
