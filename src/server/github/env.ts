@@ -85,15 +85,14 @@ export function isGitHubIntegrationConfigured() {
     return false;
   }
 
-  try {
-    validateProductionRedirectUri(parsed.data);
-    validateProviderEndpoints(parsed.data);
-    return true;
-  } catch {
-    return false;
-  }
+try {
+  validateProductionRedirectUri(parsed.data);
+  validateProviderEndpoints(parsed.data);
+  return true;
+} catch (error) {
+  console.error("[GitHub Config Validation Failed]", error);
+  return false;
 }
-
 export function getGitHubServerEnvironment(): GitHubServerEnvironment {
   const parsed = githubServerEnvironmentSchema.safeParse(environmentInput());
 
