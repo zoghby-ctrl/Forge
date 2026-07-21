@@ -9,6 +9,9 @@ export interface LogContext {
   githubRepositoryId?: string;
   errorName?: string;
   errorCode?: string;
+  authStage?: "magic_link" | "password_sign_in" | "password_sign_up";
+  authStatus?: number;
+  authErrorMessage?: string;
   githubStatus?: number | null;
   githubResponseBody?: string | null;
   openaiHttpStatus?: number | null;
