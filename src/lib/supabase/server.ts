@@ -2,9 +2,10 @@ import "server-only";
 
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import type { NextResponse } from "next/server";
 import { getPublicEnvironment } from "@/lib/env";
 
-export async function createServerSupabaseClient() {
+export async function createServerSupabaseClient(response?: NextResponse) {
   const environment = getPublicEnvironment();
   const cookieStore = await cookies();
 
@@ -20,6 +21,7 @@ export async function createServerSupabaseClient() {
           try {
             cookiesToSet.forEach(({ name, value, options }) => {
               cookieStore.set(name, value, options);
+              response?.cookies.set(name, value, options);
             });
           } catch {
             // Server Components cannot set cookies. src/proxy.ts refreshes the

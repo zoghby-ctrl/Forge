@@ -1,6 +1,7 @@
 import "server-only";
 
 import { z } from "zod";
+import { logError } from "@/server/observability/logger";
 
 const base64EncryptionKeySchema = z.string().min(1).superRefine((value, context) => {
   try {
@@ -82,22 +83,40 @@ function validateProviderEndpoints(environment: GitHubServerEnvironment) {
 export function isGitHubIntegrationConfigured() {
   const parsed = githubServerEnvironmentSchema.safeParse(environmentInput());
   if (!parsed.success) {
+    logError("GitHub configuration validation failed", {
+      integration: "github",
+      githubStage: "configuration_validation",
+      configurationIssues: parsed.error.issues.map((issue) =>
+        `${issue.path.join(".") || "value"}: ${issue.message}`,
+      ),
+    });
     return false;
   }
 
-try {
-  validateProductionRedirectUri(parsed.data);
-  validateProviderEndpoints(parsed.data);
-  return true;
-} catch (error) {
-  console.error("[GitHub Config Validation Failed]", error);
-  return false;
+  try {
+    validateProductionRedirectUri(parsed.data);
+    validateProviderEndpoints(parsed.data);
+    return true;
+  } catch (error) {
+    logError("GitHub configuration validation failed", {
+      integration: "github",
+      githubStage: "configuration_validation",
+      errorName: error instanceof Error ? error.name : "UnknownError",
+      configurationErrorMessage: error instanceof Error ? error.message : "Unknown GitHub configuration error",
+    });
+    return false;
+  }
 }
+
 export function getGitHubServerEnvironment(): GitHubServerEnvironment {
   const parsed = githubServerEnvironmentSchema.safeParse(environmentInput());
 
   if (!parsed.success) {
-    throw new GitHubConfigurationError();
+    throw new GitHubConfigurationError(
+      parsed.error.issues
+        .map((issue) => `${issue.path.join(".") || "value"}: ${issue.message}`)
+        .join("; "),
+    );
   }
 
   validateProductionRedirectUri(parsed.data);

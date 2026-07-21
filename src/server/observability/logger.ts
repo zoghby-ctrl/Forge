@@ -31,6 +31,8 @@ export interface LogContext {
   groqResponseBody?: unknown | null;
   aiAttempt?: number;
   validationIssues?: string[];
+  configurationErrorMessage?: string;
+  configurationIssues?: string[];
   session?: "present" | "missing";
 }
 
