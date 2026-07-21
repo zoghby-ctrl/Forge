@@ -1,0 +1,19 @@
+- generic [active] [ref=f2e1]:
+  - main [ref=f2e2]:
+    - region [ref=f2e3]:
+      - link "Forge home" [ref=f2e4] [cursor=pointer]:
+        - /url: /
+        - generic "Forge" [ref=f2e5]
+      - paragraph [ref=f2e10]: Secure workspace access
+      - heading [level=1] [ref=f2e11]:
+        - text: Keep the decision
+        - emphasis [ref=f2e12]: with the evidence.
+      - paragraph [ref=f2e13]: Sign in to open your private Forge workspace. Repository connection remains a separate, read-only step.
+      - generic [ref=f2e14]:
+        - generic [ref=f2e15]: Work email
+        - textbox "Work email" [ref=f2e16]:
+          - /placeholder: you@company.com
+        - button "Continue securely" [ref=f2e17] [cursor=pointer]:
+          - generic [ref=f2e19]: ↗
+        - paragraph [ref=f2e20]: We use a passwordless sign-in link. No repository access is requested here.
+  - button "Open Next.js Dev Tools" [ref=f2e26] [cursor=pointer]

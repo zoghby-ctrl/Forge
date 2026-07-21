@@ -1,8 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { signOut } from "@/app/actions/auth";
+import { AppSidebar } from "@/components/forge/app-sidebar";
+import { ForgeMark } from "@/components/forge/forge-mark";
+import { GitHubMark } from "@/components/forge/github-mark";
+import {
+  PullRequestWorkspace,
+  RepositoryPicker,
+  WorkspaceOverview,
+} from "@/components/forge/workspace-surfaces";
 import { ChangePassportCard } from "@/components/passport/change-passport";
+import { PassportEvidence } from "@/components/passport/passport-evidence";
 import { PassportReviewTools } from "@/components/passport/passport-review-tools";
 import type {
   ForgeEvidence,
@@ -24,12 +32,12 @@ import {
 const scanStepCount = 4;
 
 const stageLabels: Record<WorkspaceStage, string> = {
-  landing: "Forge is ready to connect a repository.",
+  landing: "Forge workspace overview.",
   oauth: "Establishing repository access.",
-  repositories: "Choose a repository to inspect.",
-  scanning: "Reading repository history.",
-  guarantees: "Repository guarantees are ready for review.",
-  "pull-requests": "Recent pull requests are ready to inspect.",
+  repositories: "Choose or refresh the active repository.",
+  scanning: "Repository source record status.",
+  guarantees: "Repository source record is ready.",
+  "pull-requests": "Pull request source records are ready to inspect.",
   passport: "Change Passport is open.",
 };
 
@@ -52,25 +60,6 @@ const githubNotices: Record<string, string> = {
   authorization_expired: "GitHub authorization expired before it could be completed. Connect GitHub again.",
 };
 
-function ForgeGlyph() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M3 3h18v5H8v5h9v8H3v-5h9v-5H3V3Z" fill="currentColor" />
-    </svg>
-  );
-}
-
-function GitHubGlyph() {
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M8 .2a7.8 7.8 0 0 0-2.47 15.2c.39.08.53-.17.53-.37v-1.5c-2.17.47-2.63-.92-2.63-.92-.36-.9-.87-1.14-.87-1.14-.71-.48.05-.47.05-.47.79.05 1.2.81 1.2.81.7 1.2 1.84.86 2.29.66.07-.5.28-.86.5-1.06-1.73-.2-3.55-.87-3.55-3.85 0-.85.31-1.55.8-2.09-.08-.2-.35-1 .08-2.07 0 0 .65-.21 2.14.8A7.4 7.4 0 0 1 8 2.76c.66 0 1.33.09 1.95.27 1.48-1 2.13-.8 2.13-.8.43 1.07.16 1.87.08 2.07.5.54.8 1.24.8 2.09 0 2.99-1.82 3.65-3.56 3.85.28.24.53.69.53 1.39v2.07c0 .2.14.45.54.37A7.8 7.8 0 0 0 8 .2Z"
-      />
-    </svg>
-  );
-}
-
 function ArrowGlyph() {
   return (
     <svg viewBox="0 0 20 20" aria-hidden="true">
@@ -87,13 +76,18 @@ function CheckGlyph() {
   );
 }
 
-function relativeTime(timestamp: string) {
-  const elapsed = Math.max(0, Date.now() - new Date(timestamp).getTime());
-  const minutes = Math.floor(elapsed / 60_000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  return hours < 24 ? `${hours}h ago` : `${Math.floor(hours / 24)}d ago`;
+function formatCount(count: number, singular: string, plural = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function verdictLabel(verdict: ForgePassport["verdict"]) {
+  return verdict === "ship_with_conditions"
+    ? "Ship with conditions"
+    : verdict.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function shortSha(sha: string) {
+  return sha.length > 12 ? sha.slice(0, 12) : sha;
 }
 
 function EvidenceCurrent({
@@ -180,9 +174,12 @@ export function ForgeDemo({
   );
   const [selectedRemoteRepository, setSelectedRemoteRepository] = useState<GitHubRepositorySummary | null>(null);
   const [syncingRepository, setSyncingRepository] = useState(false);
-  const [scanProgress, setScanProgress] = useState(0);
+  const [scanProgress, setScanProgress] = useState(
+    initialForgeWorkspace?.repositories.length ? scanStepCount : 0,
+  );
   const [activeEvidenceId, setActiveEvidenceId] = useState<string | null>(null);
   const [repairOverride, setRepairOverride] = useState<{ passportId: string; value: boolean } | null>(null);
+  const [repairSaving, setRepairSaving] = useState(false);
   const [recording, setRecording] = useState(false);
   const [analyzingPassportId, setAnalyzingPassportId] = useState<string | null>(null);
   const [analysisProgress, setAnalysisProgress] = useState<string | null>(null);
@@ -191,6 +188,7 @@ export function ForgeDemo({
     initialGitHubNotice ? githubNotices[initialGitHubNotice] ?? "GitHub connection needs attention." : null,
   );
   const [disconnecting, setDisconnecting] = useState(false);
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const recordingTimerRef = useRef<number | null>(null);
   const evidenceControls = useRef<Record<string, HTMLButtonElement | null>>({});
 
@@ -202,7 +200,10 @@ export function ForgeDemo({
   const pullRequests = (workspace?.pullRequests ?? []).filter(
     (pullRequest) => pullRequest.repositoryId === selectedRepository?.id,
   );
-  const selectedPassport = (workspace?.passports ?? []).find(
+  const repositoryPassports = (workspace?.passports ?? []).filter(
+    (passport) => passport.repositoryId === selectedRepository?.id,
+  );
+  const selectedPassport = repositoryPassports.find(
     (passport) => passport.id === selectedPassportId,
   ) ?? (workspace?.passports ?? []).find(
     (passport) => passport.repositoryId === selectedRepository?.id,
@@ -216,6 +217,58 @@ export function ForgeDemo({
   const repairStaged = repairOverride && repairOverride.passportId === selectedPassport?.id
     ? repairOverride.value
     : Boolean(selectedPassport?.repairStaged);
+  const analyzingSelectedPassport = analyzingPassportId === selectedPassport?.id;
+  const selectedAnalysisComplete = selectedPassport?.analysisStatus === "complete";
+  const selectedReviewAnswerCount = selectedPassport?.review.messages.filter((message) => message.role === "assistant").length ?? 0;
+  const selectedHasReview = Boolean(selectedPassport && (selectedReviewAnswerCount > 0 || selectedPassport.review.insights));
+  const selectedSourceEvidenceCount = selectedPassport?.evidence.filter((entry) => (
+    entry.label === "Pull request" || entry.label === "Diff metadata" || entry.label === "Commit metadata"
+  )).length ?? 0;
+  const selectedAnalysisLabel = analyzingSelectedPassport
+    ? selectedAnalysisComplete ? "Checking current" : "In progress"
+    : selectedPassport?.analysisStatus === "complete"
+      ? selectedPassport.verdict === "insufficient_evidence" ? "Evidence insufficient" : "Complete"
+      : selectedPassport?.analysisStatus === "failed"
+        ? "Needs retry"
+        : "Not run";
+  const selectedAnalysisDetail = selectedAnalysisComplete && selectedPassport
+    ? `${verdictLabel(selectedPassport.verdict)} recommendation`
+    : analyzingSelectedPassport
+      ? analysisProgress ?? "Reading retained source"
+      : selectedPassport?.analysisStatus === "failed"
+        ? "Source facts remain available"
+        : "Source facts only";
+  const selectedReviewLabel = !selectedAnalysisComplete
+    ? "Blocked"
+    : selectedHasReview
+      ? "Available"
+      : "Not started";
+  const selectedReviewDetail = selectedPassport?.review.insights
+    ? "Risk review generated"
+    : selectedReviewAnswerCount > 0
+      ? `${selectedReviewAnswerCount} cited ${selectedReviewAnswerCount === 1 ? "answer" : "answers"}`
+      : selectedAnalysisComplete
+        ? "Optional evidence-bound review"
+        : "Requires completed analysis";
+  const selectedDecisionLabel = selectedPassport?.decision
+    ? "Recorded"
+    : selectedAnalysisComplete
+      ? "Pending"
+      : "Blocked";
+  const hasAppSidebar = Boolean(workspace);
+  const activeNavigationStage: WorkspaceStage = stage === "oauth"
+    ? "landing"
+    : stage === "guarantees"
+      ? "scanning"
+      : stage;
+
+  const workspaceNavigation = useMemo(() => [
+    { stage: "landing" as const, label: "Overview", description: "Workspace status" },
+    { stage: "repositories" as const, label: "Repositories", description: selectedRepository ? "Switch or refresh" : "Choose a source", disabled: !isConnected },
+    { stage: "scanning" as const, label: "Source record", description: selectedRepository ? `${formatCount(pullRequests.length, "pull request")} captured` : "Awaiting a repository", disabled: !selectedRepository },
+    { stage: "pull-requests" as const, label: "Pull requests", description: `${pullRequests.length} available`, disabled: pullRequests.length === 0 },
+    { stage: "passport" as const, label: "Change Passport", description: selectedPassport ? selectedPassport.analysisStatus.replaceAll("_", " ") : "Awaiting a change", disabled: !selectedPassport || !selectedPassportPullRequest },
+  ], [isConnected, pullRequests.length, selectedPassport, selectedPassportPullRequest, selectedRepository]);
 
   useEffect(() => {
     if (stage !== "repositories" || !isConnected) {
@@ -258,39 +311,49 @@ export function ForgeDemo({
 
   const changedFiles = pullRequests.reduce((count, pullRequest) => count + pullRequest.filesChanged, 0);
   const commits = pullRequests.reduce((count, pullRequest) => count + pullRequest.commitsCount, 0);
+  const displayedPullRequestCount = syncingRepository ? 0 : pullRequests.length;
+  const displayedChangedFiles = syncingRepository ? 0 : changedFiles;
+  const displayedCommits = syncingRepository ? 0 : commits;
+  const displayedPassportCount = syncingRepository ? 0 : repositoryPassports.length;
   const scanSteps = [
       {
         title: "Reading repository history",
         detail: syncingRepository
           ? "Fetching recent pull requests from GitHub."
-          : `${pullRequests.length} recent pull requests captured from GitHub.`,
-        result: `${pullRequests.length} pull requests`,
+          : `${formatCount(displayedPullRequestCount, "recent pull request")} captured from GitHub.`,
+        result: formatCount(displayedPullRequestCount, "pull request"),
       },
       {
         title: "Capturing changed-file metadata",
         detail: syncingRepository
           ? "Waiting for GitHub file metadata."
-          : `${changedFiles} changed files recorded without copying source code.`,
-        result: `${changedFiles} files`,
+          : `${formatCount(displayedChangedFiles, "changed file")} recorded without copying source code.`,
+        result: formatCount(displayedChangedFiles, "file"),
       },
       {
         title: "Capturing commit metadata",
         detail: syncingRepository
           ? "Waiting for GitHub commit metadata."
-          : `${commits} commits retained as traceable source records.`,
-        result: `${commits} commits`,
+          : `${formatCount(displayedCommits, "commit")} retained as traceable source records.`,
+        result: formatCount(displayedCommits, "commit"),
       },
       {
-        title: "Mapping changes to guarantees",
-        detail: "Forge is ready to analyze a selected pull request against its source evidence.",
-        result: "Ready to analyze",
+        title: "Preparing Change Passport records",
+        detail: syncingRepository
+          ? "Waiting for pull request source records."
+          : `${formatCount(displayedPassportCount, "source record")} ${displayedPassportCount === 1 ? "is" : "are"} ready for on-demand analysis.`,
+        result: `${displayedPassportCount} ready`,
       },
   ];
 
   const currentIndex = Math.max(0, evidenceEntries.findIndex((entry) => entry.id === activeEvidence?.id));
 
   const topbarContext = stage === "landing"
-    ? "Decision memory for software changes"
+    ? workspace
+      ? selectedRepository
+        ? `${selectedRepository.fullName} · overview`
+        : `${workspace.project.name} · overview`
+      : "Decision memory for software changes"
     : stage === "oauth"
       ? "Establishing repository access"
       : stage === "repositories"
@@ -318,12 +381,24 @@ export function ForgeDemo({
     setStage("landing");
     setScanProgress(0);
     setActiveEvidenceId(null);
+    setRepairSaving(false);
     setRecording(false);
     setAnalyzingPassportId(null);
     setAnalysisProgress(null);
     setAnalysisError(null);
     setPersistenceError(null);
+    setMobileNavigationOpen(false);
   }, []);
+
+  const navigateWorkspace = useCallback((nextStage: WorkspaceStage) => {
+    if (nextStage === "scanning" && selectedRepository) {
+      setScanProgress(scanStepCount);
+    }
+    if (nextStage === "passport" && selectedPassport) {
+      setActiveEvidenceId(selectedPassport.evidence[0]?.id ?? null);
+    }
+    setStage(nextStage);
+  }, [selectedPassport, selectedRepository]);
 
   const moveEvidence = useCallback((direction: -1 | 1, moveFocus: boolean) => {
     const next = evidenceEntries[Math.max(0, Math.min(evidenceEntries.length - 1, currentIndex + direction))];
@@ -336,6 +411,12 @@ export function ForgeDemo({
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && mobileNavigationOpen) {
+        event.preventDefault();
+        setMobileNavigationOpen(false);
+        return;
+      }
+
       if (event.key.toLowerCase() === "r" && !event.metaKey && !event.ctrlKey && !event.altKey) {
         const target = event.target as HTMLElement | null;
         if (!target?.closest("input, textarea, select, [contenteditable=true]")) {
@@ -347,7 +428,7 @@ export function ForgeDemo({
       if (stage !== "passport") return;
       const target = event.target as HTMLElement | null;
       const evidenceControl = target?.closest("[data-evidence-control]");
-      if (target?.closest("button, a, input, textarea, select, [contenteditable=true]") && !evidenceControl) return;
+      if (target?.closest("button, a, input, textarea, select, summary, [role=button], [contenteditable=true]") && !evidenceControl) return;
 
       if (event.key === "ArrowDown" || event.key === "ArrowRight" || event.key.toLowerCase() === "j") {
         event.preventDefault();
@@ -361,7 +442,7 @@ export function ForgeDemo({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [moveEvidence, resetJourney, stage]);
+  }, [mobileNavigationOpen, moveEvidence, resetJourney, stage]);
 
   const beginAuthentication = useCallback(() => {
     setPersistenceError(null);
@@ -422,10 +503,11 @@ export function ForgeDemo({
   }, [updatePassport]);
 
   const stageRepair = useCallback(async () => {
-    if (!selectedPassport) return;
+    if (!selectedPassport || repairSaving) return;
 
     const nextValue = !repairStaged;
     setRepairOverride({ passportId: selectedPassport.id, value: nextValue });
+    setRepairSaving(true);
     setPersistenceError(null);
 
     try {
@@ -435,8 +517,10 @@ export function ForgeDemo({
     } catch (error) {
       setRepairOverride(null);
       setPersistenceError(error instanceof Error ? error.message : "Forge could not stage this follow-up.");
+    } finally {
+      setRepairSaving(false);
     }
-  }, [repairStaged, selectedPassport, updatePassport]);
+  }, [repairSaving, repairStaged, selectedPassport, updatePassport]);
 
   const recordDecision = useCallback(async () => {
     if (!selectedPassport || selectedPassport.analysisStatus !== "complete" || recorded || recording) return;
@@ -488,54 +572,90 @@ export function ForgeDemo({
   }, []);
 
   return (
-    <main className={"forge-shell stage-" + stage + (recorded ? " is-recorded" : "")} id="forge">
+    <main className={"forge-shell stage-" + stage + (recorded ? " is-recorded" : "") + (hasAppSidebar ? " has-app-sidebar" : "")} id="forge">
       <a className="skip-link" href="#main-content">Skip to current Forge view</a>
       <p className="sr-only" aria-live="polite">{stageLabels[stage]}</p>
 
+      {workspace && (
+        <AppSidebar
+          activeStage={activeNavigationStage}
+          githubLogin={workspace.github.login}
+          githubConnected={isConnected}
+          mobileOpen={mobileNavigationOpen}
+          navigation={workspaceNavigation}
+          disconnecting={disconnecting}
+          onClose={() => setMobileNavigationOpen(false)}
+          onDisconnect={() => {
+            setMobileNavigationOpen(false);
+            void disconnect();
+          }}
+          onNavigate={navigateWorkspace}
+          onRestart={resetJourney}
+        />
+      )}
+
       <header className="forge-topbar">
-        <button className="forge-brand" type="button" onClick={resetJourney} aria-label="Restart Forge journey">
-          <ForgeGlyph />
-          <span>Forge</span>
+        {workspace && (
+          <button
+            className="mobile-navigation-trigger"
+            type="button"
+            aria-label="Open navigation"
+            aria-controls="forge-navigation"
+            aria-expanded={mobileNavigationOpen}
+            onClick={() => setMobileNavigationOpen(true)}
+          >
+            <span /><span /><span />
+          </button>
+        )}
+        <button className={"forge-brand" + (workspace ? " is-workspace-brand" : "")} type="button" onClick={resetJourney} aria-label="Open Forge overview">
+          <ForgeMark />
         </button>
-        <div className="topbar-center" aria-hidden="true">
+        <div className="topbar-center">
           <span className="topbar-current" />
           <span>{topbarContext}</span>
         </div>
         <div className="topbar-actions">
-          {isConnected && <span className="connection-pill"><i />GitHub · {workspace?.github.login ?? "connected"}</span>}
-          {isConnected && <button type="button" className="replay-button" onClick={disconnect} disabled={disconnecting}>{disconnecting ? "Disconnecting" : "Disconnect GitHub"}</button>}
-          <button type="button" className="replay-button" onClick={resetJourney}>Replay</button>
-          {workspace && <form action={signOut}><button type="submit" className="replay-button">Sign out</button></form>}
+          {isConnected && <span className="connection-pill"><GitHubMark /><span>GitHub · {workspace?.github.login ?? "connected"}</span><i /></span>}
+          {(!workspace || stage !== "landing") && <button type="button" className="replay-button" onClick={resetJourney}>{workspace ? "Overview" : "Replay"}</button>}
         </div>
       </header>
 
       <section className="forge-main" id="main-content" aria-label="Forge workspace">
         {persistenceError && <p className="stage-footnote" role="alert">{persistenceError}</p>}
 
-        {stage === "landing" && (
+        {stage === "landing" && (workspace ? (
+          <WorkspaceOverview
+            workspace={workspace}
+            repository={selectedRepository}
+            pullRequests={pullRequests}
+            onConnect={beginAuthentication}
+            onNavigate={navigateWorkspace}
+            onOpenPassport={(passport) => { void openPassport(passport); }}
+          />
+        ) : (
           <section className="landing-stage stage-view" aria-labelledby="landing-title">
-            <div className="landing-copy">
-              <p className="eyebrow">The operating system for engineering decisions</p>
-              <h1 id="landing-title">Engineering<br /><span>decisions,</span><br />traced.</h1>
-              <p className="landing-deck">Forge builds a source-backed record around consequential pull requests—before confidence turns into production risk.</p>
-              <button className="primary-action" type="button" onClick={() => isConnected ? setStage("repositories") : beginAuthentication()}>
-                <GitHubGlyph />
-                <span>{isConnected ? "Choose a repository" : "Connect GitHub"}</span>
-                <ArrowGlyph />
-              </button>
-              <p className="quiet-assurance">GitHub data stays server-side · Forge sends no write requests · Source records before conclusions</p>
-            </div>
-            <div className="landing-instrument" aria-hidden="true">
-              <p>Evidence Current / source-backed</p>
-              <EvidenceCurrent stage="landing" pullRequest={null} evidence={[]} verdict={null} />
-              <div className="landing-readout">
-                <span>Source</span><b>Pull request facts</b>
-                <span>Proof</span><b>Diff metadata</b>
-                <span>Memory</span><b>Human decision</b>
+              <div className="landing-copy">
+                <p className="eyebrow">The operating system for engineering decisions</p>
+                <h1 id="landing-title">Engineering<br /><span>decisions,</span><br />traced.</h1>
+                <p className="landing-deck">Forge builds a source-backed record around consequential pull requests—before confidence turns into production risk.</p>
+                <button className="primary-action" type="button" onClick={beginAuthentication}>
+                  <GitHubMark />
+                  <span>Connect GitHub</span>
+                  <ArrowGlyph />
+                </button>
+                <p className="quiet-assurance">GitHub data stays server-side · Forge sends no write requests · Source records before conclusions</p>
               </div>
-            </div>
+              <div className="landing-instrument" aria-hidden="true">
+                <p>Evidence Current / source-backed</p>
+                <EvidenceCurrent stage="landing" pullRequest={null} evidence={[]} verdict={null} />
+                <div className="landing-readout">
+                  <span>Source</span><b>Pull request facts</b>
+                  <span>Proof</span><b>Diff metadata</b>
+                  <span>Memory</span><b>Human decision</b>
+                </div>
+              </div>
           </section>
-        )}
+        ))}
 
         {stage === "oauth" && (
           <section className="oauth-stage stage-view" aria-labelledby="oauth-title">
@@ -544,7 +664,7 @@ export function ForgeDemo({
               <h1 id="oauth-title">Establishing<br />repository access.</h1>
               <p>Forge is redirecting to GitHub with PKCE and a one-time authorization state. Access tokens never enter the browser.</p>
               <div className="oauth-status" aria-label="Establishing GitHub repository access">
-                <GitHubGlyph />
+                <GitHubMark />
                 <div><span>github.com</span><b>Establishing repository access</b></div>
                 <span className="scan-marker">…</span>
               </div>
@@ -560,65 +680,47 @@ export function ForgeDemo({
         {stage === "repositories" && isConnected && (
           <section className="repositories-stage stage-view" aria-labelledby="repository-title">
             <StageIntro
-              eyebrow="GitHub / repository picker"
-              step="02 / 06"
-              title="Choose the system you want to understand."
-              copy="Forge reads repository metadata directly from GitHub before it builds any source record."
+              eyebrow="GitHub / active repository"
+              step="Connected / read only"
+              title={selectedRepository ? "Choose, switch, or refresh your source." : "Choose the system you want to understand."}
+              copy="Forge reads repository metadata directly from GitHub. Switching changes the active workspace, while existing decision records remain stored."
             />
-            {repositoriesLoading && <p className="stage-footnote" role="status">Reading repositories from GitHub…</p>}
-            {repositoryError && (
-              <div className="stage-next" role="alert">
-                <span>{repositoryError}</span>
-                <button className="primary-action" type="button" onClick={() => setRepositoryLoadKey((key) => key + 1)}>Try again <ArrowGlyph /></button>
-              </div>
-            )}
-            {!repositoriesLoading && !repositoryError && availableRepositories.length === 0 && (
-              <div className="stage-next">
-                <span>No repositories are available to this GitHub account. Check organization access, then reconnect if permissions changed.</span>
-                <button className="primary-action" type="button" onClick={disconnect}>Disconnect GitHub <ArrowGlyph /></button>
-              </div>
-            )}
-            {!repositoriesLoading && !repositoryError && availableRepositories.length > 0 && (
-              <div className="repository-list" aria-label="Available repositories">
-                {availableRepositories.map((repository, index) => (
-                  <button
-                    className="repository-row"
-                    key={repository.id}
-                    type="button"
-                    onClick={() => selectRepository(repository)}
-                  >
-                    <span className="row-index">{String(index + 1).padStart(2, "0")}</span>
-                    <GitHubGlyph />
-                    <span className="repository-row-title"><b>{repository.name}</b><small>{repository.owner} · {repository.visibility} · updated {relativeTime(repository.updatedAt)}</small></span>
-                    <span className="repository-branch">{repository.defaultBranch}</span>
-                    <span className="repository-meta">{repository.language ?? "Unknown"} · activity {relativeTime(repository.lastActivityAt)}</span>
-                    <ArrowGlyph />
-                  </button>
-                ))}
-              </div>
-            )}
-            <p className="stage-footnote">Repository name · owner · visibility · default branch · language · recent activity</p>
+            <RepositoryPicker
+              repositories={availableRepositories}
+              currentRepository={selectedRepository}
+              githubLogin={workspace?.github.login ?? null}
+              loading={repositoriesLoading}
+              error={repositoryError}
+              onRetry={() => setRepositoryLoadKey((key) => key + 1)}
+              onSelect={selectRepository}
+              onDisconnect={() => { void disconnect(); }}
+            />
           </section>
         )}
 
         {stage === "scanning" && (
           <section className="scanning-stage stage-view" aria-labelledby="scan-title">
             <StageIntro
-              eyebrow="Repository scan / source ingestion"
-              step="03 / 06"
-              title={syncingRepository ? "Reading repository history." : "Repository history captured."}
+              eyebrow="Source record / GitHub sync"
+              step={syncingRepository ? "Sync in progress" : "Source current"}
+              title={syncingRepository ? "Reading repository history." : "Repository source captured."}
               copy={syncingRepository
                 ? `Forge is reading ${selectedRemoteRepository?.fullName ?? "this repository"} from GitHub.`
                 : "Forge retained pull request, changed-file, commit, and diff metadata as an inspectable source record."}
             />
             {repositoryError && (
-              <div className="stage-next" role="alert">
-                <span>{repositoryError}</span>
-                <button className="primary-action" type="button" onClick={() => setStage("repositories")}>Return to repository picker <ArrowGlyph /></button>
+              <div className="workspace-empty-state is-sync-error" role="alert">
+                <span>Repository sync interrupted</span>
+                <h2>Forge could not refresh this source.</h2>
+                <p>{repositoryError}</p>
+                <div>
+                  {selectedRemoteRepository && <button type="button" onClick={() => { void selectRepository(selectedRemoteRepository); }}>Try sync again</button>}
+                  <button type="button" onClick={() => setStage("repositories")}>Return to repositories</button>
+                </div>
               </div>
             )}
             {!repositoryError && <div className="scan-surface">
-              <div className="scan-repository-line"><GitHubGlyph /><span>{selectedRepository?.fullName ?? selectedRemoteRepository?.fullName ?? "GitHub repository"}</span><b>{selectedRepository?.branch ?? selectedRemoteRepository?.defaultBranch ?? ""}</b><i>read only</i></div>
+              <div className="scan-repository-line"><GitHubMark /><span>{syncingRepository ? selectedRemoteRepository?.fullName ?? "GitHub repository" : selectedRepository?.fullName ?? selectedRemoteRepository?.fullName ?? "GitHub repository"}</span><b>{syncingRepository ? selectedRemoteRepository?.defaultBranch ?? "" : selectedRepository?.branch ?? selectedRemoteRepository?.defaultBranch ?? ""}</b><i>{syncingRepository ? "syncing" : "read only"}</i></div>
               <ol className="scan-list">
                 {scanSteps.map((step, index) => {
                   const complete = !syncingRepository && index < scanProgress;
@@ -633,9 +735,9 @@ export function ForgeDemo({
                 })}
               </ol>
               <div className="scan-finish">
-                <span>{syncingRepository ? "Reading repository history" : `${scanProgress}/${scanSteps.length} source records connected`}</span>
+                <span>{syncingRepository ? "Reading repository history from GitHub" : `${formatCount(pullRequests.length, "pull request source record")} captured`}</span>
                 <button type="button" onClick={() => setStage("guarantees")} disabled={syncingRepository || scanProgress !== scanSteps.length}>
-                  <span>{syncingRepository ? "Reading repository history" : "Open source boundaries"}</span><ArrowGlyph />
+                  <span>{syncingRepository ? "Reading repository history" : "Review workspace readiness"}</span><ArrowGlyph />
                 </button>
               </div>
             </div>}
@@ -645,140 +747,152 @@ export function ForgeDemo({
         {stage === "guarantees" && (
           <section className="guarantees-stage stage-view" aria-labelledby="guarantees-title">
             <StageIntro
-              eyebrow="System guarantees / pull-request analysis"
-              step="04 / 06"
-              title="Select a pull request to reason from evidence."
-              copy="Forge keeps repository ingestion factual, then analyzes the selected pull request with its title, description, changed files, diff, and commits."
+              eyebrow="Workspace / analysis boundary"
+              step="Source current"
+              title={pullRequests.length > 0 ? "The source is ready. Reasoning stays on demand." : "The source is current. No changes are waiting."}
+              copy="Forge keeps ingestion factual. AI analysis starts only after you select a pull request, and every conclusion remains attached to source evidence."
             />
-            <div className="guarantee-list">
-              <article className="guarantee-row">
-                <span>01</span>
-                <div><p>Source record retained</p><small>Changed files, commit metadata, timestamps, and diff totals are attached to the Change Passport.</small></div>
-                <b>actual data</b>
+            <div className="readiness-ledger" aria-label="Workspace readiness">
+              <article>
+                <span>Repository</span>
+                <div><p>{selectedRepository?.fullName ?? "No active repository"}</p><small>{selectedRepository ? `${selectedRepository.branch} · ${selectedRepository.visibility} · ${selectedRepository.language ?? "language not reported"}` : "Choose a repository to establish workspace context."}</small></div>
+                <b>{selectedRepository ? "active" : "waiting"}</b>
               </article>
-              <article className="guarantee-row">
-                <span>02</span>
-                <div><p>Reasoning on demand</p><small>Forge calls the server-side analysis pipeline only after you select a pull request.</small></div>
-                <b>selected PR</b>
+              <article>
+                <span>Source record</span>
+                <div><p>{formatCount(pullRequests.length, "pull request")} · {formatCount(changedFiles, "changed file")} · {formatCount(commits, "commit")}</p><small>GitHub metadata is retained without copying repository source code into the browser.</small></div>
+                <b>{selectedRepository ? "captured" : "waiting"}</b>
+              </article>
+              <article>
+                <span>Analysis boundary</span>
+                <div><p>{formatCount(repositoryPassports.length, "Change Passport source record")}</p><small>Source-backed reasoning begins only when a reviewer opens a pull request.</small></div>
+                <b>{repositoryPassports.length > 0 ? "ready on demand" : "no changes"}</b>
               </article>
             </div>
-            <div className="stage-next"><span>Open a pull request to turn its source record into a reviewable Change Passport.</span><button className="primary-action" type="button" onClick={() => setStage("pull-requests")}>Open recent pull requests <ArrowGlyph /></button></div>
+            <div className="stage-next"><span>{pullRequests.length > 0 ? "Choose a source record to create or reopen its reviewable Change Passport." : "Select another repository if you need to review an active change."}</span><button className="primary-action" type="button" onClick={() => setStage(pullRequests.length > 0 ? "pull-requests" : "repositories")}>{pullRequests.length > 0 ? "Review pull requests" : "Choose another repository"} <ArrowGlyph /></button></div>
           </section>
         )}
 
-        {stage === "pull-requests" && (
-          <section className="pull-requests-stage stage-view" aria-labelledby="pull-requests-title">
-            <StageIntro
-              eyebrow="Recent pull requests / source records"
-              step="05 / 06"
-              title="Open the change with its evidence."
-              copy={`Forge captured the latest GitHub pull requests for ${selectedRepository?.fullName ?? "this repository"}.`}
-            />
-            {pullRequests.length === 0 ? (
-              <div className="stage-next"><span>No recent pull requests were returned by GitHub for this repository.</span><button className="primary-action" type="button" onClick={() => setStage("repositories")}>Choose another repository <ArrowGlyph /></button></div>
-            ) : (
-              <div className="pull-request-list" aria-label="Recent pull requests">
-                {pullRequests.map((pullRequest) => {
-                  const passport = (workspace?.passports ?? []).find((item) => item.pullRequestId === pullRequest.id);
-                  return (
-                    <button
-                      type="button"
-                      className={"pull-request-row" + (passport ? " is-priority" : "")}
-                      key={pullRequest.id}
-                      onClick={passport ? () => openPassport(passport) : undefined}
-                      disabled={!passport}
-                      aria-label={passport ? `Open Change Passport for pull request ${pullRequest.number}` : `${pullRequest.title} is still ingesting`}
-                    >
-                      <span className="pr-number">#{pullRequest.number}</span>
-                      <div><b>{pullRequest.title}</b><small>{pullRequest.author} · {pullRequest.branch} · +{pullRequest.additions} / -{pullRequest.deletions} · {pullRequest.commitsCount} commits · updated {pullRequest.updatedLabel}</small></div>
-                      <span className={"pr-status status-" + pullRequest.status}>{pullRequest.statusLabel}</span>
-                      {passport ? <ArrowGlyph /> : <span className="pr-quiet">Ingesting</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </section>
+        {stage === "pull-requests" && workspace && (
+          <PullRequestWorkspace
+            workspace={workspace}
+            repository={selectedRepository}
+            pullRequests={pullRequests}
+            onOpenPassport={(passport) => { void openPassport(passport); }}
+            onOpenRepositories={() => setStage("repositories")}
+          />
         )}
 
         {stage === "passport" && selectedPassport && selectedRepository && selectedPassportPullRequest && (
-          <section className="passport-stage stage-view" aria-labelledby="passport-title">
-            <header className="passport-header">
-              <div><p className="eyebrow">Change Passport / {selectedPassport.analysisStatus === "complete" ? "source-backed analysis" : "source record"}</p><span>06 / 06 · {selectedRepository.fullName}</span></div>
-              <div className="passport-header-context"><span>PR #{selectedPassportPullRequest.number}</span><span>{selectedPassportPullRequest.base} → {selectedPassportPullRequest.head}</span><span>{selectedPassportPullRequest.filesChanged} files · +{selectedPassportPullRequest.additions} / -{selectedPassportPullRequest.deletions}</span></div>
-              <h1 id="passport-title">The decision,<br />with its <em>chain of custody.</em></h1>
+          <section className="passport-record-stage stage-view" aria-labelledby="passport-title">
+            <header className="passport-record-header">
+              <div className="passport-record-kicker">
+                <p className="eyebrow">Change Passport / PR #{selectedPassportPullRequest.number}</p>
+                <span>{selectedRepository.fullName} · source current</span>
+              </div>
+              <div className="passport-record-identity">
+                <h1 id="passport-title">{selectedPassportPullRequest.title}</h1>
+                <p>{selectedPassportPullRequest.author} · {selectedPassportPullRequest.branch}</p>
+              </div>
+              <div className="passport-record-reference">
+                <span>Base {shortSha(selectedPassportPullRequest.base)} → head {shortSha(selectedPassportPullRequest.head)}</span>
+                <span>{selectedPassportPullRequest.filesChanged} files · +{selectedPassportPullRequest.additions} / -{selectedPassportPullRequest.deletions} · {selectedPassportPullRequest.commitsCount} commits</span>
+                {selectedPassportPullRequest.htmlUrl && <a href={selectedPassportPullRequest.htmlUrl} target="_blank" rel="noreferrer">Open pull request ↗</a>}
+              </div>
             </header>
 
-            {analysisProgress && <p className="stage-footnote" role="status">{analysisProgress}</p>}
-            {analysisError && (
-              <div className="stage-next" role="alert">
-                <span>{analysisError}</span>
-                <button className="primary-action" type="button" onClick={() => void openPassport(selectedPassport)} disabled={analyzingPassportId === selectedPassport.id}>
-                  {analyzingPassportId === selectedPassport.id ? "Retrying analysis" : "Retry analysis"} <ArrowGlyph />
-                </button>
-              </div>
-            )}
+            <div className="passport-status-grid" aria-label="Change Passport status">
+              <article className="tone-proof">
+                <span>Source</span>
+                <b>Captured</b>
+                <p>{selectedSourceEvidenceCount} GitHub {selectedSourceEvidenceCount === 1 ? "fact" : "facts"} retained</p>
+              </article>
+              <article className={selectedPassport.analysisStatus === "failed" && !analyzingSelectedPassport ? "tone-alert" : selectedAnalysisComplete ? "tone-proof" : "tone-muted"}>
+                <span>Analysis</span>
+                <b>{selectedAnalysisLabel}</b>
+                <p>{selectedAnalysisDetail}</p>
+              </article>
+              <article className={selectedHasReview ? "tone-proof" : "tone-muted"}>
+                <span>AI review</span>
+                <b>{selectedReviewLabel}</b>
+                <p>{selectedReviewDetail}</p>
+              </article>
+              <article className={selectedPassport.decision ? "tone-repair" : selectedAnalysisComplete ? "tone-alert" : "tone-muted"}>
+                <span>Human decision</span>
+                <b>{selectedDecisionLabel}</b>
+                <p>{selectedPassport.decision ? verdictLabel(selectedPassport.decision.action) : selectedAnalysisComplete ? "Recommendation awaits confirmation" : "Requires completed analysis"}</p>
+              </article>
+              <aside className="passport-next-action">
+                <div><span>Next action</span><b>{analyzingSelectedPassport ? "Let Forge finish" : !selectedAnalysisComplete ? selectedPassport.analysisStatus === "failed" ? "Retry analysis" : "Run analysis" : !selectedPassport.decision ? "Confirm the decision" : "Export the record"}</b></div>
+                <p>{analyzingSelectedPassport
+                  ? analysisProgress ?? "Forge is reasoning from retained source."
+                  : !selectedAnalysisComplete
+                    ? analysisError ?? selectedPassport.analysisError ?? "Generate a source-grounded recommendation before review or decision recording."
+                    : !selectedPassport.decision
+                      ? "Review the recommendation, required condition, evidence, and unknowns before recording it."
+                      : "The durable decision record is ready to share as Markdown or PDF."}</p>
+                {analyzingSelectedPassport ? (
+                  <span className="passport-next-working" role="status"><i aria-hidden="true" />Analysis in progress</span>
+                ) : !selectedAnalysisComplete ? (
+                  <button type="button" onClick={() => void openPassport(selectedPassport)}>{selectedPassport.analysisStatus === "failed" ? "Retry analysis" : "Run analysis"} <span aria-hidden="true">→</span></button>
+                ) : !selectedPassport.decision ? (
+                  <a href="#passport-decision">Review recommendation <span aria-hidden="true">↓</span></a>
+                ) : (
+                  <a href="#passport-export">Open export <span aria-hidden="true">↓</span></a>
+                )}
+              </aside>
+            </div>
 
-            <div className="passport-layout">
-              <aside className="passport-source" aria-label="Pull request source context">
-                <p className="panel-label">Source record</p>
-                <div className="source-repository"><GitHubGlyph /><span>{selectedRepository.fullName}</span></div>
-                <div className="source-pull-request"><span>#{selectedPassportPullRequest.number}</span><b>{selectedPassportPullRequest.title}</b><small>{selectedPassportPullRequest.author} · {selectedPassportPullRequest.base} → {selectedPassportPullRequest.head}</small></div>
+            <div className="passport-overview-grid">
+              <section className="passport-source-card" aria-labelledby="passport-source-title">
+                <div className="passport-source-card-head"><p className="panel-label">Source snapshot</p><span>Read only</span></div>
+                <div className="passport-source-title">
+                  <GitHubMark />
+                  <div><span>#{selectedPassportPullRequest.number}</span><h2 id="passport-source-title">{selectedPassportPullRequest.title}</h2><p>{selectedRepository.fullName}</p></div>
+                </div>
                 <dl>
-                  <div><dt>Branch</dt><dd>{selectedPassportPullRequest.branch}</dd></div>
+                  <div><dt>Author</dt><dd>{selectedPassportPullRequest.author}</dd></div>
+                  <div><dt>Head branch</dt><dd>{selectedPassportPullRequest.branch}</dd></div>
+                  <div><dt>Base commit</dt><dd>{shortSha(selectedPassportPullRequest.base)}</dd></div>
+                  <div><dt>Head commit</dt><dd>{shortSha(selectedPassportPullRequest.head)}</dd></div>
                   <div><dt>Diff</dt><dd>{selectedPassportPullRequest.filesChanged} files · +{selectedPassportPullRequest.additions} / -{selectedPassportPullRequest.deletions}</dd></div>
                   <div><dt>Commits</dt><dd>{selectedPassportPullRequest.commitsCount} captured</dd></div>
-                  <div><dt>Review state</dt><dd>{selectedPassport.reviewState.replaceAll("_", " ")}</dd></div>
                 </dl>
-              </aside>
-
-              <section className="passport-evidence" aria-label="Evidence Current">
-                <div className="evidence-heading"><p className="panel-label">Evidence Current</p><span>↑ ↓ or J K to trace</span></div>
-                <EvidenceCurrent stage="passport" pullRequest={selectedPassportPullRequest} evidence={evidenceEntries} verdict={selectedPassport.verdict} />
-                <div className="evidence-list">
-                  {evidenceEntries.map((entry, index) => (
-                    <div className="evidence-row-wrap" key={entry.id}>
-                      <button
-                        type="button"
-                        className={"evidence-row" + (activeEvidence?.id === entry.id ? " is-active" : "") + (entry.tone !== "default" ? " tone-" + entry.tone : "")}
-                        ref={(element) => { evidenceControls.current[entry.id] = element; }}
-                        onClick={() => setActiveEvidenceId(entry.id)}
-                        onFocus={() => setActiveEvidenceId(entry.id)}
-                        aria-pressed={activeEvidence?.id === entry.id}
-                        data-evidence-control
-                      >
-                        <span>{String(index + 1).padStart(2, "0")}</span>
-                        <div><small>{entry.label}</small><b>{entry.title}</b><em>{entry.detail}</em></div>
-                        <i>{entry.source}</i>
-                      </button>
-                      {entry.sourceUrl && <a className="evidence-source-link" href={entry.sourceUrl} target="_blank" rel="noreferrer">Open source ↗</a>}
-                    </div>
-                  ))}
-                </div>
+                {selectedPassportPullRequest.htmlUrl && <a href={selectedPassportPullRequest.htmlUrl} target="_blank" rel="noreferrer">Inspect source on GitHub ↗</a>}
               </section>
 
               <ChangePassportCard
                 passport={selectedPassport}
                 repository={selectedRepository.fullName}
                 changeNumber={selectedPassportPullRequest.number}
-                recorded={recorded}
                 recording={recording}
                 repairStaged={repairStaged}
-                analysisComplete={selectedPassport.analysisStatus === "complete"}
-                evidenceCount={selectedPassport.evidence.length}
+                repairSaving={repairSaving}
+                analyzing={analyzingSelectedPassport}
+                analysisError={analysisError ?? selectedPassport.analysisError}
                 summaryEvidenceUrl={selectedPassport.evidence.find((entry) => entry.label.startsWith("Intent"))?.sourceUrl ?? null}
-                reviewState={selectedPassport.reviewState}
-                onStageRepair={stageRepair}
-                onRecord={recordDecision}
+                onAnalyze={() => void openPassport(selectedPassport)}
+                onStageRepair={() => void stageRepair()}
+                onRecord={() => void recordDecision()}
               />
             </div>
+
+            <PassportEvidence
+              passport={selectedPassport}
+              pullRequest={selectedPassportPullRequest}
+              activeEvidence={activeEvidence}
+              analyzing={analyzingSelectedPassport}
+              onSelectEvidence={setActiveEvidenceId}
+              registerControl={(evidenceId, element) => { evidenceControls.current[evidenceId] = element; }}
+            />
+
             <PassportReviewTools
               passport={selectedPassport}
               pullRequest={selectedPassportPullRequest}
-              analysisComplete={selectedPassport.analysisStatus === "complete"}
+              analysisComplete={selectedAnalysisComplete}
               onReviewChange={(review) => updatePassport(selectedPassport.id, { review })}
             />
-            <footer className="passport-footer"><span>Forge records source evidence before a human decision.</span><span>{recorded ? "Decision memory / recorded" : "Evidence before confidence."}</span></footer>
+            <footer className="passport-record-footer"><span>Forge records source evidence before a human decision.</span><span>{recorded ? "Decision memory / recorded" : "Unknowns stay visible until resolved."}</span></footer>
           </section>
         )}
       </section>

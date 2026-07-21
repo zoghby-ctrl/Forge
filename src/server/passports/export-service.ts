@@ -5,6 +5,8 @@ import type {
   ForgePassportReview,
   ForgeReviewCitation,
 } from "@/domain/passport-review";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { DataAccessError } from "@/server/api/errors";
 import type { ForgeUser } from "@/server/auth/session";
 import { getPassportReviewFromPayload } from "@/server/passports/passport-extensions";
 import {
@@ -23,6 +25,27 @@ type ExportClaim = {
   rationale: string;
   citations: ForgeReviewCitation[];
 };
+
+type ExportDecision = {
+  action: "ship" | "ship_with_conditions" | "hold" | "insufficient_evidence";
+  recordedAt: string;
+};
+
+async function loadLatestDecision(passportId: string): Promise<ExportDecision | null> {
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("decisions")
+    .select("action, recorded_at")
+    .eq("passport_id", passportId)
+    .order("recorded_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw new DataAccessError("load the recorded Passport decision");
+  if (!data) return null;
+  const decision = data as { action: ExportDecision["action"]; recorded_at: string };
+  return { action: decision.action, recordedAt: decision.recorded_at };
+}
 
 function escapeMarkdown(value: string) {
   return value.replace(/([\\`*_{}\[\]<>])/g, "\\$1");
@@ -66,13 +89,20 @@ function verdictLabel(verdict: string) {
   return verdict.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function confidenceLabel(score: number) {
+  if (score >= 80) return "High";
+  if (score >= 60) return "Moderate";
+  if (score >= 40) return "Limited";
+  return "Low";
+}
+
 function addClaimLines(lines: string[], title: string, claims: ExportClaim[]) {
   if (claims.length === 0) return;
   lines.push(`## ${title}`, "");
   lines.push(...claims.map((claim) => renderClaimMarkdown(claim)), "");
 }
 
-function renderMarkdown(source: PassportSourceContext, review: ForgePassportReview) {
+function renderMarkdown(source: PassportSourceContext, review: ForgePassportReview, decision: ExportDecision | null) {
   const analysisResult = passportAnalysisSchema.safeParse(source.passport.analysis_payload);
   const lines = [
     "# Forge Change Passport",
@@ -95,10 +125,10 @@ function renderMarkdown(source: PassportSourceContext, review: ForgePassportRevi
     const analysis = analysisResult.data;
     const intent = resolveAnalysisClaim(analysis.intent, source);
     lines.push(
-      "## Decision",
+      "## AI recommendation",
       "",
       `- Verdict: **${verdictLabel(analysis.verdict)}**`,
-      `- Confidence: ${analysis.confidence.score}% — ${escapeMarkdown(analysis.confidence.rationale)}`,
+      `- Confidence: **${confidenceLabel(analysis.confidence.score)}** — ${escapeMarkdown(analysis.confidence.rationale)}`,
       `- Summary: ${escapeMarkdown(analysis.summary)}`,
       ...intent.citations.map((citation) => `  - Summary evidence: ${citationMarkdown(citation)}`),
       "",
@@ -115,6 +145,16 @@ function renderMarkdown(source: PassportSourceContext, review: ForgePassportRevi
   } else {
     lines.push("## Analysis", "", "This Passport has no completed AI analysis yet.", "");
   }
+
+  lines.push(
+    "## Human decision",
+    "",
+    decision
+      ? `- Recorded decision: **${verdictLabel(decision.action)}**`
+      : "- Status: Not recorded",
+  );
+  if (decision) lines.push(`- Recorded at: ${decision.recordedAt}`);
+  lines.push("");
 
   if (review.insights) {
     lines.push("## Enhanced risk analysis", "");
@@ -188,7 +228,7 @@ function addPdfClaim(document: PdfDocumentInstance, claim: ExportClaim, indent =
   }
 }
 
-function renderPdf(source: PassportSourceContext, review: ForgePassportReview) {
+function renderPdf(source: PassportSourceContext, review: ForgePassportReview, decision: ExportDecision | null) {
   return new Promise<Buffer>((resolve, reject) => {
     const document = new PDFDocument({ size: "A4", margin: 48, info: { Title: `Forge Change Passport PR #${source.input.pullRequest.number}` } });
     const chunks: Buffer[] = [];
@@ -200,15 +240,16 @@ function renderPdf(source: PassportSourceContext, review: ForgePassportReview) {
     addPdfText(document, `${source.repositoryFullName} · PR #${source.input.pullRequest.number}`, { url: source.input.pullRequest.htmlUrl });
     addPdfHeading(document, "Source record");
     addPdfText(document, source.input.pullRequest.title);
-    addPdfText(document, `${source.input.pullRequest.baseRef} → ${source.input.pullRequest.headRef}`);
+    addPdfText(document, `${source.input.pullRequest.baseRef} to ${source.input.pullRequest.headRef}`);
     addPdfText(document, `${source.input.files.length} changed files · ${source.input.commits.length} commits`);
 
     const analysisResult = passportAnalysisSchema.safeParse(source.passport.analysis_payload);
     if (analysisResult.success) {
       const analysis = analysisResult.data;
       const intent = resolveAnalysisClaim(analysis.intent, source);
-      addPdfHeading(document, "Decision");
-      addPdfText(document, `${verdictLabel(analysis.verdict)} · ${analysis.confidence.score}% confidence`);
+      addPdfHeading(document, "AI recommendation");
+      addPdfText(document, `${verdictLabel(analysis.verdict)} · ${confidenceLabel(analysis.confidence.score)} confidence`);
+      addPdfText(document, analysis.confidence.rationale);
       addPdfText(document, analysis.summary);
       for (const citation of intent.citations) {
         addPdfText(document, `Summary evidence: ${citationLabel(citation)} — ${citation.note}`, { indent: 12, url: citation.sourceUrl ?? undefined });
@@ -228,6 +269,11 @@ function renderPdf(source: PassportSourceContext, review: ForgePassportReview) {
         for (const claim of claims) addPdfClaim(document, resolveAnalysisClaim(claim, source));
       }
     }
+
+    addPdfHeading(document, "Human decision");
+    addPdfText(document, decision
+      ? `${verdictLabel(decision.action)} · recorded ${decision.recordedAt}`
+      : "Not recorded");
 
     if (review.insights) {
       addPdfHeading(document, "Enhanced risk analysis");
@@ -265,18 +311,21 @@ export async function exportPassportForUser(input: {
   passportId: string;
   format: PassportExportFormat;
 }) {
-  const source = await loadPassportSourceForUser(input.user, input.passportId);
+  const [source, decision] = await Promise.all([
+    loadPassportSourceForUser(input.user, input.passportId),
+    loadLatestDecision(input.passportId),
+  ]);
   const review = getPassportReviewFromPayload(source.passport.analysis_payload);
   const baseName = `forge-change-passport-pr-${source.input.pullRequest.number}`;
   if (input.format === "markdown") {
     return {
-      body: renderMarkdown(source, review),
+      body: renderMarkdown(source, review, decision),
       contentType: "text/markdown; charset=utf-8",
       filename: `${baseName}.md`,
     };
   }
   return {
-    body: await renderPdf(source, review),
+    body: await renderPdf(source, review, decision),
     contentType: "application/pdf",
     filename: `${baseName}.pdf`,
   };

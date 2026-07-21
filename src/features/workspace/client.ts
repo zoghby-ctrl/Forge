@@ -225,3 +225,26 @@ export function generatePassportInsights(
     onProgress,
   });
 }
+
+export type PassportExportFormat = "markdown" | "pdf";
+
+export async function preparePassportExport(passportId: string, format: PassportExportFormat) {
+  const response = await fetch(`/api/passports/${passportId}/export?format=${format}`, {
+    method: "GET",
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as ApiResponse<never> | null;
+    throw new Error(payload && !payload.ok ? payload.error.message : "Forge could not prepare this export.");
+  }
+
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const filename = disposition.match(/filename="([^"]+)"/)?.[1]
+    ?? `forge-change-passport.${format === "markdown" ? "md" : "pdf"}`;
+
+  return {
+    blob: await response.blob(),
+    filename,
+  };
+}

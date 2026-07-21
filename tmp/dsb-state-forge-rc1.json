@@ -1,0 +1,17 @@
+{
+  "runId": "forge-rc1-2026-07-20",
+  "phase": "phase1",
+  "step": "collections-created",
+  "entities": {
+    "collections": {
+      "color": "VariableCollectionId:7:2",
+      "dimensions": "VariableCollectionId:7:3",
+      "typography": "VariableCollectionId:7:4"
+    },
+    "variables": {},
+    "pages": {},
+    "components": {}
+  },
+  "pendingValidations": ["phase1:tokens", "phase1:styles"],
+  "completedSteps": ["phase0", "phase1:collections"]
+}

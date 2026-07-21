@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { safeNextPath } from "@/lib/navigation";
 import { SignInForm } from "@/app/sign-in/sign-in-form";
+import { ForgeMark } from "@/components/forge/forge-mark";
 
 export const dynamic = "force-dynamic";
 
@@ -16,8 +17,7 @@ export default async function SignInPage({
     <main className="sign-in-shell">
       <section className="sign-in-card" aria-labelledby="sign-in-title">
         <Link className="sign-in-brand" href="/" aria-label="Forge home">
-          <span aria-hidden="true">F</span>
-          <span>Forge</span>
+          <ForgeMark />
         </Link>
         <p className="eyebrow">Secure workspace access</p>
         <h1 id="sign-in-title">Keep the decision<br /><em>with the evidence.</em></h1>
