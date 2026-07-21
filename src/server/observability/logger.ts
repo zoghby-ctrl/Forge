@@ -5,6 +5,9 @@ export interface LogContext {
   projectId?: string;
   integration?: "github" | "openai" | "groq";
   githubStage?: string;
+  redirectOrigin?: string;
+  redirectPath?: string;
+  stateValidation?: "passed" | "failed";
   aiStage?: string;
   githubRepositoryId?: string;
   errorName?: string;

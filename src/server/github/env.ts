@@ -54,8 +54,16 @@ function validateProductionRedirectUri(environment: GitHubServerEnvironment) {
     return;
   }
 
-  if (new URL(environment.GITHUB_REDIRECT_URI).protocol !== "https:") {
-    throw new GitHubConfigurationError("GITHUB_REDIRECT_URI must use HTTPS in production.");
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (!appUrl) {
+    throw new GitHubConfigurationError("NEXT_PUBLIC_APP_URL is required for GitHub OAuth in production.");
+  }
+
+  const expectedRedirectUri = new URL("/api/github/callback", appUrl).toString();
+  if (environment.GITHUB_REDIRECT_URI !== expectedRedirectUri) {
+    throw new GitHubConfigurationError(
+      "GITHUB_REDIRECT_URI must equal NEXT_PUBLIC_APP_URL + /api/github/callback in production.",
+    );
   }
 }
 

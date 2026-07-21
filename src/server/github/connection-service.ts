@@ -98,7 +98,14 @@ export async function completeGitHubAuthorization(input: {
   }
 
   const cookie = parseGitHubOAuthCookie(input.stateCookie);
-  if (!cookie || !isMatchingGitHubOAuthState(cookie, input.state, input.userId)) {
+  const stateValid = Boolean(cookie && isMatchingGitHubOAuthState(cookie, input.state, input.userId));
+  logInfo("GitHub OAuth state validation completed", {
+    requestId: input.requestId,
+    integration: "github",
+    githubStage: "state_validation",
+    stateValidation: stateValid ? "passed" : "failed",
+  });
+  if (!stateValid || !cookie) {
     throw new ValidationError("GitHub authorization could not be verified.");
   }
   logGitHubOAuthStage(input.requestId, "state_cookie_verified");
@@ -123,11 +130,27 @@ export async function completeGitHubAuthorization(input: {
     throw error;
   }
 
-  const token = await exchangeGitHubOAuthCode(
-    environment,
-    input.code,
-    readGitHubOAuthCodeVerifier(consumedState),
-  );
+  let token;
+  try {
+    token = await exchangeGitHubOAuthCode(
+      environment,
+      input.code,
+      readGitHubOAuthCodeVerifier(consumedState),
+    );
+  } catch (error) {
+    logError("GitHub OAuth token exchange failed", {
+      requestId: input.requestId,
+      integration: "github",
+      githubStage: "token_exchange",
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
+    throw error;
+  }
+  logInfo("GitHub OAuth token exchange succeeded", {
+    requestId: input.requestId,
+    integration: "github",
+    githubStage: "token_exchange",
+  });
   logGitHubOAuthStage(input.requestId, "token_exchanged");
   const client = new GitHubRestClient(token.accessToken, environment.GITHUB_API_BASE_URL);
 

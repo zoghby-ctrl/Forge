@@ -36,6 +36,11 @@ function safeCallbackErrorContext(error: unknown) {
 
 export async function GET(request: NextRequest) {
   const requestId = crypto.randomUUID();
+  logInfo("GitHub OAuth callback reached", {
+    requestId,
+    integration: "github",
+    githubStage: "callback_reached",
+  });
   const providerError = request.nextUrl.searchParams.get("error");
   if (providerError) {
     logInfo("GitHub OAuth authorization was cancelled by the provider", {
@@ -84,7 +89,7 @@ export async function GET(request: NextRequest) {
       stateCookie: request.cookies.get("forge_github_oauth")?.value,
       requestId,
     });
-    return secureRedirect(request, "/?stage=repositories&github=connected", requestId);
+    return secureRedirect(request, "/?stage=landing&github=connected", requestId);
   } catch (error) {
     logError("GitHub OAuth callback failed", {
       requestId,
